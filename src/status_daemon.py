@@ -54,8 +54,8 @@ def run_telemetry_loop(interval: float = 3.0):
             if state[:4] != (last_state[:4] if last_state else None):
                 pattern, color, speed, bri, desc = state
                 print(f"[Telemetry] Status Change: {desc} -> {pattern} {color}")
-                set_keyboard_led(pattern=pattern, color=color, speed=speed, brightness=bri)
-                last_state = state
+                if set_keyboard_led(pattern=pattern, color=color, speed=speed, brightness=bri):
+                    last_state = state
 
             time.sleep(interval)
     except KeyboardInterrupt:
@@ -67,3 +67,4 @@ if __name__ == "__main__":
     parser.add_argument("--interval", "-i", type=float, default=3.0, help="Poll interval in seconds")
     args = parser.parse_args()
     run_telemetry_loop(interval=args.interval)
+
