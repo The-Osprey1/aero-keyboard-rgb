@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aero-keyboard-rgb"
+version = "0.1.0"
+description = "Reverse-engineered keyboard lighting and status indicator controller for GIGABYTE AERO & AORUS Laptops"
+readme = "README.md"
+authors = [
+    { name = "Devyn" }
+]
+license = { text = "MIT" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: Microsoft :: Windows",
+    "Topic :: System :: Hardware :: Hardware Drivers",
+]
+requires-python = ">=3.8"
+dependencies = []
+
+[project.scripts]
+aero-rgb = "src.keyboard_led:main"
