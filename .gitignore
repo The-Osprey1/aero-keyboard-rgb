@@ -18,3 +18,10 @@ obj/
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# Python packaging & testing
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.venv/

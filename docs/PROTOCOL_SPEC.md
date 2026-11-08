@@ -101,7 +101,10 @@ This packet sets the active 24-bit RGB palette in the MCU registers:
   * Byte 4 (Red): `0x00`
   * Byte 5 (Green): `0xFF`
   * Byte 6 (Blue): `0xFF`
-  * Checksum: `(255 - (0x14 + 0x00 + 0x01 + 0x00 + 0xFF + 0xFF + 0x00)) & 0xFF = 0xEB`
+  * Checksum: `(255 - (0x14 + 0x00 + 0x01 + 0x00 + 0xFF + 0xFF + 0x00)) & 0xFF = 0xEC`
+  * *Correction:* an earlier version of this document gave `0xEB` here, which disagrees with the
+    formula in section 3 by one. `0xEC` is what the formula gives. Which one the chip accepts
+    is still unconfirmed; `aero-rgb probe --checksum` tests both (see [HARDWARE_TESTING.md](HARDWARE_TESTING.md)).
 
 ### Step 2: SpinWait Delay
 Wait **15–25ms** for MCU register latching:
@@ -156,3 +159,19 @@ Windows 11 natively discovers Interface 4 (`MI_04`) as a standard **HID LampArra
   $lampArray.SetColor([Windows.UI.Color]::FromArgb(255, R, G, B))
   ```
   This controls the auxiliary chassis/notification status indicator directly through the Windows OS Dynamic Lighting pipeline.
+
+---
+
+## 7. Open Questions
+
+These details are not yet confirmed on hardware. The `aero-rgb` tool makes each one
+configurable or testable; see [HARDWARE_TESTING.md](HARDWARE_TESTING.md).
+
+| Question | Current assumption | How to check |
+| :--- | :--- | :--- |
+| Which interface (`MI_00`–`MI_04`) accepts the 9-byte feature reports? | First vendor-defined usage page (`0xFF00` and up) | `aero-rgb probe --find-interface` |
+| Checksum: formula (`0xEC` for cyan) or the old worked example (`0xEB`)? | Formula | `aero-rgb probe --checksum` |
+| Static-mode brightness: plain value or `0x20 \| brightness`? | Plain value | `static_brightness_flag` setting |
+| Are zones other than `0x01` meaningful? | Single zone (matches retail spec sheets for the AERO X16 1WH) | `aero-rgb probe --zones` |
+| Does the chip save each change to permanent memory? | Unknown, so writes are rate-limited to 4 per second | Set a color and restart |
+| Does the `LampArray` on `MI_04` control the keyboard or only a separate indicator? | Separate indicator | Windows Settings → Personalization → Dynamic Lighting |
