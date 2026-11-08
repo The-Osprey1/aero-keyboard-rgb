@@ -47,7 +47,7 @@ yet**. Some protocol details still need confirming on real hardware:
 
 ## Install
 
-Requires Python 3.9 or newer.
+Requires Python 3.10 or newer.
 
 ```powershell
 git clone https://github.com/The-Osprey1/aero-keyboard-rgb

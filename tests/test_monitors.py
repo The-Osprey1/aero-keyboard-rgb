@@ -1,4 +1,7 @@
+import sys
 from pathlib import Path
+
+import pytest
 
 from aero_rgb.config import BatteryConfig, TransferConfig, UsbConfig
 from aero_rgb.monitors.battery import (LAYER, LAYER_FLASH, LAYER_LOW_PULSE, LAYER_WARNING, BatteryMonitor,
@@ -91,6 +94,9 @@ def make_sysfs(root: Path) -> None:
     (root / "usb1").mkdir()  # root hub: ignored
 
 
+@pytest.mark.skipif(sys.platform == "win32",
+                    reason="the fake device folders use Linux names like '1-2:1.0', which Windows can't create; "
+                           "linux_snapshot only runs on Linux, where this test does run")
 def test_linux_snapshot(tmp_path):
     make_sysfs(tmp_path)
     devices = {d.name: d for d in linux_snapshot(tmp_path).values()}
