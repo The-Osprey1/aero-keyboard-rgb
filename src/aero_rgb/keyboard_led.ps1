@@ -4,6 +4,8 @@
 .DESCRIPTION
     Controls the keyboard RGB LED array and status indicators on GIGABYTE AERO / AORUS laptops
     via the internal hardware lighting controller.
+.NOTES
+    Normally called by the aero-rgb Python tool. Can also be run on its own.
 .EXAMPLE
     .\keyboard_led.ps1 -Color Cyan -Pattern Breathe
     .\keyboard_led.ps1 -Status busy
@@ -14,7 +16,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("Static", "Breathe", "Pulse", "Cycle", "Rainbow", "RgbPulse", "CyclePulse")]
+    [ValidateSet("Static", "Still", "Breathe", "Pulse", "Cycle", "Rainbow", "RgbPulse", "CyclePulse")]
     [string]$Pattern = "Static",
 
     [Parameter(Position = 1)]
@@ -30,7 +32,14 @@ param(
 
     [Parameter()]
     [ValidateSet("normal", "idle", "busy", "building", "success", "pass", "warning", "error", "fail", "focus", "rainbow", "off", "restore")]
-    [string]$Status
+    [string]$Status,
+
+    [Parameter()]
+    [ValidateRange(1, 8)]
+    [int]$Zone = 1,
+
+    [Parameter()]
+    [switch]$Quiet
 )
 
 # Color name mapping table
@@ -137,6 +146,7 @@ switch ($Pattern.ToLower()) {
     "pulse"      { $pattId = 1 }
     "cycle"      { $pattId = 78 }
     "rainbow"    { $pattId = 78 }
+    "still"      { $pattId = 0 }
     "rgbpulse"   { $pattId = 84 }
     "cyclepulse" { $pattId = 92 }
 }
@@ -179,19 +189,23 @@ $cmd.bri = [byte]$Brightness
 $cmd.speed = [byte]$Speed
 $cmd.clr_idx = [byte]0
 
-$param.rgb_zone = 1
+$param.rgb_zone = $Zone
 $param.rgb_color = $colorInt
 $param.cmd = $cmd
 
 $setZoneMethod = $controllerType.GetMethod("set_RgbZoneEff", [System.Reflection.BindingFlags]'Public,NonPublic,Instance,Static')
 $result = $setZoneMethod.Invoke($controller, @($param))
 
-if ($result -eq 0) {
+if ($result -eq 0 -and $Quiet) {
+    exit 0
+} elseif ($result -eq 0) {
     Write-Host "Keyboard LED successfully updated:" -ForegroundColor Green
     Write-Host "  Pattern:    $Pattern ($pattId)"
     Write-Host "  Color:      $Color (0x$($colorInt.ToString('X6')))"
     Write-Host "  Brightness: $Brightness/10"
     Write-Host "  Speed:      $Speed/10"
+    Write-Host "  Zone:       $Zone"
 } else {
-    Write-Warning "Hardware returned status code: $result"
+    Write-Error "Hardware returned status code: $result"
+    exit 2
 }

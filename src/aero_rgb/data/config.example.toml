@@ -1,0 +1,104 @@
+# aero-rgb settings.
+# Create your own copy with:  aero-rgb config init
+# Find where it lives with:   aero-rgb config path
+# Every setting is optional. Anything left out uses the default shown here.
+
+[device]
+# How to talk to the keyboard:
+#   "auto"       - try the direct USB route first, then Gigabyte's software
+#   "hid"        - direct USB commands (needs: pip install hidapi)
+#   "powershell" - Gigabyte Control Center's files (Windows, Control Center installed)
+#   "dry-run"    - print the bytes instead of sending them
+backend = "auto"
+# Which USB interface accepts lighting commands. Found by: aero-rgb probe --find-interface
+# hid_interface = 3
+# hid_usage_page = 0xFF01
+# Pause between the color command and the pattern command (milliseconds).
+latch_delay_ms = 20
+# Never write to the lighting chip more often than this (milliseconds). Protects the chip.
+min_write_interval_ms = 250
+# Unconfirmed protocol details. Only change these if probe tests show they are needed.
+static_speed = 2
+static_brightness_flag = 0
+
+# Your own color names. Use them anywhere a color is accepted.
+[colors]
+# brand = "#7B2FF7"
+# night = "#331100"
+
+# Your own presets. Use them with:  aero-rgb preset gaming
+# pattern: static, breathe, cycle (rainbow), rgbpulse, cyclepulse
+# brightness: 0-10    speed: 1-10
+[presets.gaming]
+pattern = "breathe"
+color = "purple"
+brightness = 9
+speed = 5
+
+[presets.late-night]
+pattern = "static"
+color = "#FF7A1A"
+brightness = 2
+
+# What the keyboard shows when nothing else is happening.
+[base]
+preset = "normal"
+# Lights off while the background program is stopped? "leave" keeps the last color.
+on_exit = "restore"
+
+# Switch the base preset by time of day (24-hour clock). Ranges may wrap past midnight.
+# [[schedule]]
+# from = "08:00"
+# to = "18:00"
+# preset = "normal"
+#
+# [[schedule]]
+# from = "22:00"
+# to = "07:00"
+# preset = "late-night"
+
+[battery]
+# "off"       - never show battery
+# "warning"   - only warn when the battery is low (default)
+# "on_change" - show the battery color for a few seconds when the charger is plugged in or out
+# "always"    - the keyboard color always shows the battery level
+mode = "warning"
+low_percent = 20
+critical_percent = 10
+show_seconds = 4
+brightness = 7
+# Colors from empty (0.0) to full (1.0).
+gradient = [[0.0, "red"], [0.2, "orange"], [0.5, "yellow"], [1.0, "green"]]
+
+[usb]
+enabled = true
+pulse_seconds = 3
+pulse_on_unplug = true
+unplug_color = "orange"
+default_color = "white"
+# Colors by device type. Ports you name with "aero-rgb ports calibrate" can have their own color.
+[usb.kind_colors]
+storage = "cyan"
+phone = "purple"
+input = "lime"
+audio = "gold"
+camera = "pink"
+
+[transfer]
+enabled = true
+# Text to look for in Windows copy-window titles. Change it if Windows is not in English.
+title_pattern = '(\d{1,3})\s*%\s*complete'
+start_color = "blue"
+end_color = "green"
+brightness = 8
+# Treat a drive as busy above this write speed (kilobytes per second).
+activity_threshold_kbps = 512
+# Seconds without writes before a transfer counts as finished.
+idle_seconds = 4
+done_flash_seconds = 3
+# Only watch drives that were plugged in after the background program started.
+only_new_drives = true
+
+[ipc]
+# Local port used by "aero-rgb run" and "aero-rgb copy" to talk to the background program.
+port = 47615
