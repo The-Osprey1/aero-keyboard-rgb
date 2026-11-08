@@ -1,0 +1,23 @@
+name: CLI verification
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python: ['3.8', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip setuptools wheel
+      - run: python -m unittest discover -s tests -v
+      - run: python -m pip wheel . --no-deps --wheel-dir dist
+      - shell: pwsh
+        run: |
+          $wheel = (Get-ChildItem dist/*.whl).FullName
+          python -m pip install $wheel
+          Set-Location $env:RUNNER_TEMP
+          aero-rgb --help
+          python -c "from src.keyboard_led import SCRIPT_PATH; assert SCRIPT_PATH.is_file()"

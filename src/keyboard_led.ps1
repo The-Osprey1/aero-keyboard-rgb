@@ -33,6 +33,8 @@ param(
     [string]$Status
 )
 
+$ErrorActionPreference = "Stop"
+
 # Color name mapping table
 $ColorMap = @{
     "black"      = 0x000000
@@ -66,11 +68,13 @@ function Resolve-ColorValue([string]$col) {
     } elseif ($c.StartsWith("0x")) {
         $c = $c.Substring(2)
     }
+    if ($c -notmatch '^[0-9a-f]{6}$') {
+        throw "Invalid color '$col'. Use a supported name or six-digit RGB hex."
+    }
     try {
         return [System.Convert]::ToInt32($c, 16)
     } catch {
-        Write-Warning "Unknown color '$col', defaulting to White (0xFFFFFF)"
-        return 0xFFFFFF
+        throw "Invalid color '$col'."
     }
 }
 
@@ -147,7 +151,7 @@ $colorInt = Resolve-ColorValue $Color
 $commDir = "C:\Program Files\GIGABYTE\Control Center\Lib\COMMDLL"
 $ucDir   = "C:\Program Files\GIGABYTE\Control Center\Lib\GBT_rgbLaptop_UC"
 
-if (-not (Test-Path "$commDir\RGBFI.dll") -or -not (Test-Path "$ucDir\RgbLaptop.dll")) {
+if (-not (Test-Path "$commDir\RGBFI.dll") -or -not (Test-Path "$commDir\RgbCommon.dll") -or -not (Test-Path "$ucDir\RgbLaptop.dll")) {
     Write-Error "Gigabyte Control Center libraries not found on this system."
     exit 1
 }
@@ -193,5 +197,7 @@ if ($result -eq 0) {
     Write-Host "  Brightness: $Brightness/10"
     Write-Host "  Speed:      $Speed/10"
 } else {
-    Write-Warning "Hardware returned status code: $result"
+    Write-Error "Hardware returned status code: $result"
+    exit 1
 }
+
