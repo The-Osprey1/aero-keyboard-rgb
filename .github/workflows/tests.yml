@@ -17,6 +17,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip setuptools wheel
       - run: python -m pip install -e ".[dev]"
       - run: python -m pytest -v
       - name: Command-line smoke test (no keyboard needed)
@@ -32,3 +33,23 @@ jobs:
           [System.Management.Automation.Language.Parser]::ParseFile("$PWD/src/aero_rgb/keyboard_led.ps1", [ref]$null, [ref]$errors) | Out-Null
           if ($errors) { $errors | ForEach-Object { Write-Error $_.ToString() }; exit 1 }
           Write-Host "keyboard_led.ps1 parses cleanly"
+
+  package:
+    # Builds the installable package and checks it from outside the checkout,
+    # so missing data files (like the PowerShell script) are caught.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade pip setuptools wheel
+      - run: python -m pip wheel . --no-deps --wheel-dir dist
+      - shell: pwsh
+        run: |
+          $wheel = (Get-ChildItem dist/*.whl).FullName
+          python -m pip install $wheel
+          Set-Location $env:RUNNER_TEMP
+          aero-rgb --help
+          aero-rgb --dry-run --status busy
+          python -c "from aero_rgb.backends import POWERSHELL_SCRIPT; from aero_rgb.config import EXAMPLE_CONFIG; assert POWERSHELL_SCRIPT.is_file(); assert EXAMPLE_CONFIG.is_file()"

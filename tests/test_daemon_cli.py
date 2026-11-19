@@ -104,7 +104,7 @@ def test_cli_config_init_and_custom_preset(capsys):
 def test_cli_run_reports_exit_code(capsys):
     import sys
 
-    assert main(["run", "--dry-run", "--", sys.executable, "-c", "raise SystemExit(4)"]) == 4
+    assert main(["run", "--dry-run", "--seconds", "0", "--", sys.executable, "-c", "raise SystemExit(4)"]) == 4
     out = capsys.readouterr().out
     assert "#00FFFF" in out and "#FF0000" in out  # busy, then error
 
