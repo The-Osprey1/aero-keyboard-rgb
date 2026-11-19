@@ -1,7 +1,9 @@
 # Hardware backend follow-up
 
-The first CLI improvement keeps the existing Gigabyte DLL backend. It does not
-claim independent HID support or newly verified laptop compatibility.
+The Gigabyte Control Center route (`--backend powershell`) remains the known-good baseline.
+The direct USB route (`--backend hid`) is implemented but **not yet validated on hardware**; no
+laptop compatibility is claimed until the checklist in [HARDWARE_TESTING.md](HARDWARE_TESTING.md)
+has been run and its results recorded.
 
 Reference: https://github.com/ejempty/aero-keyboard-fan at
 802d4fe17f274c5b9796ae1a7f75c90ed0f8f44e.
@@ -11,7 +13,7 @@ decoding lamp count, kind and minimum update interval. This is a useful lead,
 not evidence that every matching laptop exposes the same physical lights.
 Our protocol notes describe the interface as an auxiliary notification lamp.
 
-Before replacing the backend:
+Before treating the direct route as working (the `aero-rgb probe` commands cover steps 1 and 3):
 
 1. Enumerate the target machine's interfaces dynamically; record model and IDs.
 2. Read descriptors and LampArray attributes without modifying hardware.
@@ -19,6 +21,10 @@ Before replacing the backend:
 4. Verify color, brightness, ownership conflicts and wake recovery.
 5. Keep model-specific capabilities and verified results separate from assumptions.
 
-No external implementation code has been copied. Fan control is outside this
-lighting change. A tray controller, event arbitration, idle/wake behavior and
-an independent backend remain follow-up work.
+No external implementation code has been copied. Fan control is out of scope.
+
+Status of earlier follow-up items: event arbitration (the background program's priority
+layers) and the independent backend now exist; the backend still needs the hardware
+validation above. A tray controller and idle/wake handling remain follow-up work. The
+LampArray lead is worth checking during step 3: if `MI_04` turns out to drive the whole
+keyboard, Windows Dynamic Lighting could become a third route.

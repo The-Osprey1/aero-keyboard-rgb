@@ -1,1 +1,0 @@
-"""AERO keyboard lighting tools."""

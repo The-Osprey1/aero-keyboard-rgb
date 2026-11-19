@@ -19,10 +19,10 @@ Thumbs.db
 Desktop.ini
 .DS_Store
 
-
-# Packaging and local verification
+# Packaging, testing and local verification
+*.egg-info/
 build/
 dist/
-*.egg-info/
+.pytest_cache/
 .test-temp/
 .venv/
