@@ -41,10 +41,12 @@ color = "#FF7A1A"
 brightness = 2
 
 # What the keyboard shows when nothing else is happening.
+# Leave "preset" out to use your saved profile (aero-rgb profile save), or "normal" if none is saved.
 [base]
-preset = "normal"
-# Lights off while the background program is stopped? "leave" keeps the last color.
-on_exit = "restore"
+# preset = "normal"
+# When the background program stops: "base" (your normal look), "leave" (keep the last color),
+# or any preset name.
+on_exit = "base"
 
 # Switch the base preset by time of day (24-hour clock). Ranges may wrap past midnight.
 # [[schedule]]

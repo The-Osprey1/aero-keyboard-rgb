@@ -192,9 +192,14 @@ class PowerShellBackend(Backend):
             "-Speed", str(state.speed), "-Zone", str(zone), "-Quiet",
         ]
 
+    timeout = 20.0  # seconds; Gigabyte's files occasionally hang
+
     def apply(self, state: LightState) -> None:
         for zone, rgb in state.zone_colors():
-            result = self._run(self.command(state, zone, rgb), capture_output=True, text=True)
+            try:
+                result = self._run(self.command(state, zone, rgb), capture_output=True, text=True, timeout=self.timeout)
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                raise BackendError(f"Gigabyte lighting controller unavailable: {exc}") from exc
             if result.returncode != 0:
                 raise BackendError(f"keyboard_led.ps1 failed ({result.returncode}): {(result.stderr or result.stdout).strip()}")
 

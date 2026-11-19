@@ -19,8 +19,9 @@
   device type (drive, phone, mouse...) or for each port you name.
 - **File transfer progress**: the color moves from blue to green as a File Explorer copy
   progresses, then flashes when it's done.
-- **Build and command signals**: `aero-rgb run -- pytest` breathes cyan while it runs, then turns
-  green (passed) or red (failed).
+- **Build and command signals**: `aero-rgb run -- pytest` breathes cyan while it runs, turns
+  green (passed) or red (failed), then goes back to your saved normal backlight.
+- **A saved "normal" backlight** (`aero-rgb profile save`) that everything returns to.
 
 All of these share the light sensibly. A background program decides what shows. Short alerts
 (USB pulses, low battery) take over for a few seconds, then the light goes back to whatever was
@@ -69,6 +70,20 @@ aero-rgb battery --show                          # flash the battery color
 aero-rgb --dry-run preset busy                   # show the bytes without touching the keyboard
 ```
 
+## Save your normal backlight
+
+```powershell
+aero-rgb profile save --color White --brightness 6   # saves only; the keyboard doesn't change
+aero-rgb profile show
+aero-rgb profile apply                               # puts it on the keyboard
+```
+
+Your profile is what the keyboard returns to after a task, an alert, or when the background
+program stops. It's stored in `%APPDATA%\aero-keyboard-rgb\profile.json` on Windows and
+`~/.config/aero-keyboard-rgb/` on Linux (set `AERO_RGB_CONFIG_DIR` to use another folder). If you
+haven't saved one, the built-in `normal` preset is used. If your settings file names a `[base]`
+preset, that wins over the profile. The tool doesn't read the keyboard's current state.
+
 Built-in presets:
 
 | Preset | Look | Use |
@@ -81,7 +96,8 @@ Built-in presets:
 | `focus` | Dim warm white | Night / low eye strain |
 | `rainbow` | Color cycle | Ambient |
 | `off` | Off | Stealth |
-| `restore` | White, brightness 7 | Factory-like default |
+| `restore` | White, brightness 7 | Factory-like default (not your profile) |
+| `profile` | Your saved backlight | Back to normal |
 
 ## The background program
 
@@ -119,17 +135,40 @@ There are 3 sources of progress:
 
 ```powershell
 aero-rgb run -- pytest
-aero-rgb run -- npm test
+aero-rgb run --seconds 5 -- npm test
 aero-rgb run -- cargo build --release
 ```
 
-The command's exit code is passed through, so `run` works in scripts and git hooks. From Python:
+Breathes cyan while the command runs, shows green or red for `--seconds` (default 3, up to 60),
+then restores your normal backlight. Details:
+
+- The command's exit code is passed through, even if a lighting update fails, so `run` works in
+  scripts and git hooks. Ctrl+C returns 130, a missing command returns 127, and one that can't be
+  started returns 126.
+- The command isn't started if the first lighting update fails or your saved profile is damaged.
+- Arguments are passed exactly as typed, with no shell in between. For shell syntax or batch
+  files, call the shell yourself, for example `aero-rgb run -- cmd /c build.bat`.
+- Use commands that keep running until their work is finished. A program that opens a window and
+  returns at once ends the signal early.
+- If the wrapper is force-killed, it can't restore the light. Run `aero-rgb profile apply`.
+
+From Python (each returns `True` on success, `False` with a message on failure):
 
 ```python
 from aero_rgb import set_status, set_keyboard_led
 
-set_status("busy")
-set_keyboard_led(pattern="breathe", color="#00FFCC", speed=8, brightness=8)
+ok = set_status("busy")
+ok = set_keyboard_led(pattern="breathe", color="#00FFCC", speed=8, brightness=8)
+```
+
+### Older command style
+
+The flag style from earlier versions still works:
+
+```powershell
+aero-rgb --status busy
+aero-rgb --pattern Breathe --color Cyan --brightness 5 --speed 8
+.\src\aero_rgb\keyboard_led.ps1 -Status focus
 ```
 
 ## Personalize
@@ -170,6 +209,13 @@ phone = "purple"
 
 See [src/aero_rgb/data/config.example.toml](src/aero_rgb/data/config.example.toml) for every setting.
 
+## Only one lighting controller at a time
+
+Inside aero-rgb, the background program decides what shows, so its features don't fight. Other
+lighting software doesn't know about it: Gigabyte Control Center, GiMATE, and Windows Dynamic
+Lighting can all change the keyboard too. If the colors jump around unexpectedly, turn the others
+off (in Windows: Settings → Personalization → Dynamic Lighting).
+
 ## Start automatically at login
 
 **Windows**: open Command Prompt and run (`pythonw` runs it without a window):
@@ -203,7 +249,8 @@ WantedBy=default.target
 aero-keyboard-rgb/
 ├── docs/
 │   ├── PROTOCOL_SPEC.md        # The lighting chip's command format
-│   └── HARDWARE_TESTING.md     # Checklist for confirming everything on the laptop
+│   ├── HARDWARE_TESTING.md     # Checklist for confirming everything on the laptop
+│   └── HARDWARE_BACKEND_RESEARCH.md  # Leads and rules for validating the direct route
 ├── src/aero_rgb/
 │   ├── cli.py                  # The aero-rgb command
 │   ├── protocol.py             # Builds the 9-byte commands and checksums
@@ -211,6 +258,7 @@ aero-keyboard-rgb/
 │   ├── engine.py               # Decides which request controls the light
 │   ├── daemon.py               # The background program
 │   ├── config.py               # Settings file
+│   ├── profile.py              # Your saved normal backlight
 │   ├── state.py, colors.py     # Lighting state, presets and color helpers
 │   ├── ipc.py                  # Local messages between commands and the background program
 │   ├── keyboard_led.ps1        # Gigabyte Control Center route (also works on its own)
@@ -235,7 +283,8 @@ Run the tests with `python -m pip install -e ".[dev]"` then `python -m pytest`.
 | **Command format** | 9-byte USB HID (Human Interface Device) feature reports |
 
 Full details, including open questions, are in [docs/PROTOCOL_SPEC.md](docs/PROTOCOL_SPEC.md).
+Leads for confirming the direct route are in [docs/HARDWARE_BACKEND_RESEARCH.md](docs/HARDWARE_BACKEND_RESEARCH.md).
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). Not affiliated with GIGABYTE.

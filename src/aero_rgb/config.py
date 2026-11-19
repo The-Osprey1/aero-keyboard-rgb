@@ -19,7 +19,7 @@ else:  # pragma: no cover - exercised only on older Pythons
     import tomli as tomllib
 
 EXAMPLE_CONFIG = Path(__file__).parent / "data" / "config.example.toml"
-APP_NAME = "aero-rgb"
+APP_NAME = "aero-keyboard-rgb"  # same folder the earlier profile command used
 
 
 def config_dir() -> Path:
@@ -115,7 +115,8 @@ class Config:
     colors: Dict[str, ColorInput] = field(default_factory=dict)
     presets: Dict[str, LightState] = field(default_factory=dict)
     base_preset: str = "normal"
-    on_exit: str = "restore"
+    base_explicit: bool = False  # True when the settings file names a base preset
+    on_exit: str = "base"
     schedule: List[ScheduleEntry] = field(default_factory=list)
     battery: BatteryConfig = field(default_factory=BatteryConfig)
     usb: UsbConfig = field(default_factory=UsbConfig)
@@ -126,10 +127,24 @@ class Config:
         return parse_color(value, self.colors)
 
     def preset_names(self) -> List[str]:
-        return sorted(set(BUILTIN_PRESETS) | set(PRESET_ALIASES) | set(self.presets))
+        return sorted(set(BUILTIN_PRESETS) | set(PRESET_ALIASES) | set(self.presets) | {"profile"})
+
+    def saved_profile(self) -> Optional[LightState]:
+        """The profile saved with 'aero-rgb profile save', or None. A damaged file raises ValueError."""
+        from .profile import load_profile, profile_state
+
+        profile = load_profile(self.colors)
+        return profile_state(profile, self.colors) if profile else None
 
     def preset(self, name: str) -> LightState:
         key = name.strip().lower()
+        if key == "profile" and "profile" not in self.presets:
+            from .profile import SAVE_HINT
+
+            saved = self.saved_profile()
+            if saved is None:
+                raise ValueError(f"No saved profile. {SAVE_HINT}")
+            return saved
         if key in self.presets:
             return self.presets[key]
         key = PRESET_ALIASES.get(key, key)
@@ -138,11 +153,25 @@ class Config:
         raise ValueError(f"Unknown preset {name!r}. Available: {', '.join(self.preset_names())}")
 
     def base_state(self, now: Optional[dtime] = None) -> LightState:
+        """The keyboard's normal look: a scheduled preset, else the [base] preset if the settings
+        file names one, else your saved profile, else the built-in "normal" preset."""
         if now is not None:
             for entry in self.schedule:
                 if entry.contains(now):
                     return self.preset(entry.preset)
+        if not self.base_explicit:
+            saved = self.saved_profile()
+            if saved is not None:
+                return saved
         return self.preset(self.base_preset)
+
+    def exit_state(self, now: Optional[dtime] = None) -> Optional[LightState]:
+        """What to show when the background program stops. None means leave the light as it is."""
+        if self.on_exit == "leave":
+            return None
+        if self.on_exit == "base":
+            return self.base_state(now)
+        return self.preset(self.on_exit)
 
     @property
     def ports_path(self) -> Path:
@@ -203,6 +232,7 @@ def config_from_dict(data: Mapping[str, Any], path: Optional[Path] = None) -> Co
 
     base = data.get("base", {})
     _check_keys("base", base, {"preset", "on_exit"})
+    cfg.base_explicit = "preset" in base
     cfg.base_preset = str(base.get("preset", cfg.base_preset)).lower()
     cfg.on_exit = str(base.get("on_exit", cfg.on_exit)).lower()
 
@@ -231,11 +261,10 @@ def config_from_dict(data: Mapping[str, Any], path: Optional[Path] = None) -> Co
     cfg.ipc_port = int(ipc.get("port", cfg.ipc_port))
 
     # Validate references to presets now rather than when the daemon is already running.
-    cfg.preset(cfg.base_preset)
-    if cfg.on_exit != "leave":
-        cfg.preset(cfg.on_exit)
-    for entry in cfg.schedule:
-        cfg.preset(entry.preset)
+    # ("profile" is checked when used, since it may be saved after the settings file is written.)
+    for name in [cfg.base_preset, cfg.on_exit] + [entry.preset for entry in cfg.schedule]:
+        if name not in ("profile", "leave", "base"):
+            cfg.preset(name)
     return cfg
 
 

@@ -130,9 +130,14 @@ class Daemon:
         except KeyboardInterrupt:
             pass
         finally:
-            if self.config.on_exit != "leave":
+            try:
+                final = self.config.exit_state(datetime.now().time())
+            except ValueError as exc:
+                final = None
+                self.log(f"Could not work out the lighting to restore on exit: {exc}")
+            if final is not None:
                 try:
-                    self.engine.backend.apply(self.config.preset(self.config.on_exit))
+                    self.engine.backend.apply(final)
                 except Exception as exc:
                     self.log(f"Could not restore lighting on exit: {exc}")
             if self.ipc:

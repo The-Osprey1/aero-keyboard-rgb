@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import shutil
 import subprocess
@@ -336,31 +337,102 @@ def cmd_battery(args: argparse.Namespace, config: Config) -> int:
     return 0
 
 
+def result_seconds(text: str) -> float:
+    try:
+        value = float(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError("must be a number of seconds") from None
+    if not math.isfinite(value) or not 0 <= value <= 60:
+        raise argparse.ArgumentTypeError("must be between 0 and 60")
+    return value
+
+
 def cmd_run(args: argparse.Namespace, config: Config) -> int:
+    """Busy while the command runs, then success/error for a few seconds, then your normal look.
+
+    The command is started without a shell (arguments pass through exactly) and its exit code is
+    returned even if a lighting update fails. It is never started if the first lighting update
+    fails or the saved profile is damaged.
+    """
     command = args.command[1:] if args.command and args.command[0] == "--" else args.command
     if not command:
         eprint("Give a command to run, for example: aero-rgb run -- pytest")
         return 2
+    baseline = config.base_state()  # raises (so nothing starts) if the saved profile is damaged
     layer = f"run-{os.getpid()}"
     out = Output(args, config)
     try:
-        out.show(layer, config.preset("busy"))
         try:
-            code = subprocess.call(command, shell=sys.platform == "win32" and len(command) == 1)
-        except FileNotFoundError:
-            eprint(f"Command not found: {command[0]}")
-            code = 127
+            out.show(layer, config.preset("busy"))
+        except BackendError as exc:
+            eprint(f"Lighting update failed, so the command was not started: {exc}")
+            return 1
+        code = 1
+        try:
+            try:
+                code = subprocess.call(command)
+            except FileNotFoundError:
+                eprint(f"Command not found: {command[0]}")
+                code = 127
+            except OSError as exc:
+                eprint(f"Cannot start the command: {exc}")
+                code = 126
+            except KeyboardInterrupt:
+                code = 130
+            if code != 130:
+                result = config.preset("success" if code == 0 else "error")
+                try:
+                    if out.via_daemon:
+                        # The background program shows the result, then returns to your normal look itself.
+                        out.clear(layer)
+                        out.show(layer + "-result", result, PRIORITY_ALERT, args.seconds)
+                    else:
+                        out.show(layer, result)
+                        time.sleep(args.seconds)
+                except BackendError as exc:
+                    eprint(f"The command finished, but its lighting signal failed: {exc}")
         except KeyboardInterrupt:
             code = 130
-        result = config.preset("success" if code == 0 else "error")
-        if out.via_daemon:
-            out.clear(layer)
-            out.show(layer + "-result", result, PRIORITY_ALERT, args.result_seconds)
-        else:
-            out.show(layer, result)
+        finally:
+            try:
+                if out.via_daemon:
+                    out.clear(layer)
+                else:
+                    out.base(baseline)
+            except BackendError:
+                eprint("Could not restore your lighting. Retry with: aero-rgb profile apply")
+        return code
     finally:
         out.close()
-    return code
+
+
+def cmd_profile(args: argparse.Namespace, config: Config) -> int:
+    import json
+
+    from .profile import SAVE_HINT, load_profile, profile_path, profile_state, save_profile
+
+    if args.profile_cmd == "save":
+        profile = {"pattern": args.pattern, "color": args.color, "brightness": args.brightness, "speed": args.speed}
+        path = save_profile(profile, config.colors)
+        print(f"Saved your normal backlight to {path} (the keyboard was not changed).")
+        print("Show it now with: aero-rgb profile apply")
+        return 0
+    profile = load_profile(config.colors)
+    if profile is None:
+        eprint(SAVE_HINT)
+        return 1
+    if args.profile_cmd == "show":
+        print(json.dumps(profile, indent=2))
+        print(f"({profile_path()})")
+        return 0
+    state = profile_state(profile, config.colors)
+    out = Output(args, config)
+    try:
+        out.base(state)
+    finally:
+        out.close()
+    print(f"Applied your profile: {state.describe()}" + (" (via background program)" if out.via_daemon else ""))
+    return 0
 
 
 def cmd_copy(args: argparse.Namespace, config: Config) -> int:
@@ -489,9 +561,20 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_battery)
 
     p = sub.add_parser("run", help="run a command: cyan while running, then green (passed) or red (failed)")
-    p.add_argument("--result-seconds", type=float, default=10.0, help="how long to show the result (background program only)")
+    p.add_argument("--seconds", type=result_seconds, default=3.0, help="how long to show the result, 0-60 (default 3)")
     p.add_argument("command", nargs=argparse.REMAINDER)
     p.set_defaults(func=cmd_run)
+
+    p = sub.add_parser("profile", help="save, show or apply your normal backlight")
+    profile_sub = p.add_subparsers(dest="profile_cmd", required=True)
+    s = profile_sub.add_parser("save", help="save your normal backlight (doesn't change the keyboard)")
+    s.add_argument("--pattern", "-p", default="Static")
+    s.add_argument("--color", "-c", default="White")
+    s.add_argument("--brightness", "-b", type=int, default=6, help="0-10")
+    s.add_argument("--speed", "-s", type=int, default=8, help="1-10")
+    profile_sub.add_parser("show", help="print the saved profile")
+    profile_sub.add_parser("apply", help="show the saved profile on the keyboard")
+    p.set_defaults(func=cmd_profile)
 
     p = sub.add_parser("copy", help="copy files with progress shown on the keyboard")
     p.add_argument("sources", nargs="+")
@@ -508,19 +591,39 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+LEGACY_FLAGS = {"--status", "--pattern", "-p", "--color", "-c", "--brightness", "-b", "--speed", "-s"}
+
+
+def translate_legacy(argv: Sequence[str]) -> list:
+    """Support the older flag style: 'aero-rgb --status busy' and 'aero-rgb --pattern Breathe --color Cyan'."""
+    legacy = argparse.ArgumentParser(prog="aero-rgb", add_help=False)
+    legacy.add_argument("--status")
+    legacy.add_argument("--pattern", "-p", default="Static")
+    legacy.add_argument("--color", "-c", default="White")
+    legacy.add_argument("--brightness", "-b", default="7")
+    legacy.add_argument("--speed", "-s", default="8")
+    known, rest = legacy.parse_known_args(list(argv))
+    if known.status:
+        return rest + ["preset", known.status]
+    return rest + ["set", "-p", known.pattern, "-c", known.color, "-b", known.brightness, "-s", known.speed]
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] in LEGACY_FLAGS:
+        argv = translate_legacy(argv)
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
         config = load_config(Path(args.config) if args.config else None)
         return int(args.func(args, config) or 0)
-    except (ValueError, BackendError) as exc:
+    except BrokenPipeError:  # output piped into a program that stopped reading
+        return 0
+    except (ValueError, BackendError, OSError) as exc:
         eprint(f"Error: {exc}")
         return 1
     except KeyboardInterrupt:
         return 130
-    except BrokenPipeError:  # output piped into a program that stopped reading
-        return 0
 
 
 if __name__ == "__main__":
