@@ -31,7 +31,7 @@ param(
     [int]$Speed = 8,
 
     [Parameter()]
-    [ValidateSet("normal", "idle", "busy", "building", "success", "pass", "warning", "error", "fail", "focus", "rainbow", "off", "restore")]
+    [ValidateSet("normal", "idle", "busy", "building", "success", "pass", "warning", "attention", "error", "fail", "focus", "rainbow", "off", "restore")]
     [string]$Status,
 
     [Parameter()]
@@ -112,6 +112,12 @@ if ($PSBoundParameters.ContainsKey("Status")) {
             $Color = "Amber"
             $Speed = 7
             $Brightness = 8
+        }
+        "attention" {
+            $Pattern = "Breathe"
+            $Color = "Amber"
+            $Speed = 9
+            $Brightness = 10
         }
         { $_ -in "error", "fail" } {
             $Pattern = "Breathe"

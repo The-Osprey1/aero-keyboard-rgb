@@ -93,6 +93,7 @@ BUILTIN_PRESETS: Dict[str, LightState] = {
     "busy": LightState("breathe", parse_color("cyan"), 8, 8),
     "success": LightState("breathe", parse_color("green"), 9, 6),
     "warning": LightState("breathe", parse_color("amber"), 8, 7),
+    "attention": LightState("breathe", parse_color("amber"), 10, 9),  # waiting on you (Claude Code hook)
     "error": LightState("breathe", parse_color("red"), 10, 9),
     "focus": LightState("static", parse_color("warmwhite"), 3),
     "rainbow": LightState("cycle", parse_color("white"), 8, 6),

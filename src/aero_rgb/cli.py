@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import math
 import os
 import shutil
@@ -18,7 +19,7 @@ from .colors import NAMED_COLORS, parse_color, to_hex
 from .config import EXAMPLE_CONFIG, Config, default_config_path, load_config
 from .engine import PRIORITY_ALERT, PRIORITY_TASK
 from .ipc import daemon_running, request
-from .protocol import PATTERN_ALIASES, PATTERNS, build_packet, CMD_SET_COLOR, decode_packet, mode_packet
+from .protocol import PATTERN_ALIASES, PATTERNS, build_packet, CMD_SET_COLOR, decode_packet, mode_packet, parse_packet_text
 from .state import LightState
 
 
@@ -435,6 +436,44 @@ def cmd_profile(args: argparse.Namespace, config: Config) -> int:
     return 0
 
 
+def cmd_hook(args: argparse.Namespace, config: Optional[Config] = None) -> int:
+    """Claude Code hook. Always exits 0 and never writes to standard output, because Claude
+    Code adds a hook's standard output to Claude's context and a failing hook can block it."""
+    from .hooks import SessionMemory, decide, layer_name, read_payload, session_key
+
+    with contextlib.redirect_stdout(sys.stderr):
+        try:
+            payload = read_payload(sys.stdin)
+            event = args.event or payload.get("hook_event_name")
+            memory = SessionMemory()
+            key = session_key(payload)
+            decision = decide(event if isinstance(event, str) else None, payload, memory.get(key), args.result_seconds)
+            if decision.action == "ignore":
+                return 0
+            if config is None:
+                config = load_config(Path(args.config) if args.config else None)
+            out = Output(args, config)
+            try:
+                layer = layer_name(payload)
+                if decision.action == "clear":
+                    out.clear(layer)
+                    memory.forget(key)
+                else:
+                    assert decision.preset
+                    out.show(layer, config.preset(decision.preset), decision.priority, decision.duration)
+                    memory.set(key, decision.preset)
+            finally:
+                out.close()
+        except Exception as exc:  # a lighting problem must never get in Claude's way
+            eprint(f"aero-rgb hook: {exc}")
+    return 0
+
+
+def cmd_decode(args: argparse.Namespace, config: Config) -> int:
+    print(decode_packet(parse_packet_text(" ".join(args.bytes))))
+    return 0
+
+
 def cmd_copy(args: argparse.Namespace, config: Config) -> int:
     from .monitors.transfer import copy_with_progress, done_state, progress_state
 
@@ -576,6 +615,18 @@ def build_parser() -> argparse.ArgumentParser:
     profile_sub.add_parser("apply", help="show the saved profile on the keyboard")
     p.set_defaults(func=cmd_profile)
 
+    p = sub.add_parser("hook", help="for Claude Code hooks: show when Claude is working, needs you, or is done",
+                       description="Run from Claude Code hooks (see examples/claude-code-hooks.json). Reads the event "
+                                   "Claude Code sends on standard input. Always exits 0.")
+    p.add_argument("event", nargs="?", help="event name, if not reading Claude Code's input (for testing)")
+    p.add_argument("--result-seconds", type=float, default=10.0,
+                   help="how long to show 'done' (background program only)")
+    p.set_defaults(func=cmd_hook)
+
+    p = sub.add_parser("decode", help="explain packet bytes, for example from a USB capture")
+    p.add_argument("bytes", nargs="+", help="hex bytes, for example: 00 14 00 01 00 FF FF 00 EC")
+    p.set_defaults(func=cmd_decode)
+
     p = sub.add_parser("copy", help="copy files with progress shown on the keyboard")
     p.add_argument("sources", nargs="+")
     p.add_argument("destination")
@@ -614,6 +665,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         argv = translate_legacy(argv)
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.func is cmd_hook:  # loads settings itself, so a bad settings file can't make it fail
+        return cmd_hook(args)
     try:
         config = load_config(Path(args.config) if args.config else None)
         return int(args.func(args, config) or 0)
