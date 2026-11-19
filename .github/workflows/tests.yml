@@ -24,3 +24,11 @@ jobs:
           aero-rgb --dry-run preset busy
           aero-rgb list
           aero-rgb usb
+      - name: Check PowerShell script syntax
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("$PWD/src/aero_rgb/keyboard_led.ps1", [ref]$null, [ref]$errors) | Out-Null
+          if ($errors) { $errors | ForEach-Object { Write-Error $_.ToString() }; exit 1 }
+          Write-Host "keyboard_led.ps1 parses cleanly"

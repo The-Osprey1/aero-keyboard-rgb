@@ -1,0 +1,19 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "aero-rgb hook", "async": true }] }
+    ],
+    "Notification": [
+      { "hooks": [{ "type": "command", "command": "aero-rgb hook", "async": true }] }
+    ],
+    "PostToolUse": [
+      { "hooks": [{ "type": "command", "command": "aero-rgb hook", "async": true }] }
+    ],
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "aero-rgb hook", "async": true }] }
+    ],
+    "SessionEnd": [
+      { "hooks": [{ "type": "command", "command": "aero-rgb hook", "timeout": 10 }] }
+    ]
+  }
+}

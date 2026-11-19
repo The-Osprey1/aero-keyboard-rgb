@@ -7,6 +7,7 @@ configurable through :class:`ProtocolOptions` so they can be adjusted without co
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Dict, List, Sequence, Tuple
 
@@ -139,6 +140,25 @@ def decode_packet(packet: bytes) -> str:
     else:
         what = f"command 0x{packet[1]:02X}"
     return f"[{hex_bytes}] {what} checksum {status}"
+
+
+def parse_packet_text(text: str) -> bytes:
+    """Read bytes typed or pasted from a USB capture.
+
+    Accepts ``00 14 00 01 00 FF FF 00 EC``, ``0x00,0x14,...``, ``00:14:...`` or ``00140001...``.
+    """
+    tokens = [t for t in re.split(r"[\s,:;\[\]]+", text.lower().replace("0x", " ")) if t]
+    if len(tokens) == 1 and len(tokens[0]) > 2:
+        if len(tokens[0]) % 2:
+            raise ValueError("The hex string has an odd number of digits.")
+        tokens = [tokens[0][i:i + 2] for i in range(0, len(tokens[0]), 2)]
+    try:
+        values = [int(t, 16) for t in tokens]
+    except ValueError:
+        raise ValueError(f"Could not read bytes from {text!r}. Use hex, for example: 00 14 00 01 00 FF FF 00 EC") from None
+    if not values or not all(0 <= v <= 0xFF for v in values):
+        raise ValueError("Give one or more bytes, each 00-FF.")
+    return bytes(values)
 
 
 def state_packets(colors: Sequence[Tuple[int, RGB]], pattern: str, speed: int, brightness: int,

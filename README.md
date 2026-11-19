@@ -21,6 +21,8 @@
   progresses, then flashes when it's done.
 - **Build and command signals**: `aero-rgb run -- pytest` breathes cyan while it runs, then turns
   green (passed) or red (failed).
+- **Claude Code signals**: cyan while Claude works, a fast amber pulse when it needs your
+  permission or input, green when it's done.
 
 All of these share the light sensibly. A background program decides what shows. Short alerts
 (USB pulses, low battery) take over for a few seconds, then the light goes back to whatever was
@@ -77,6 +79,7 @@ Built-in presets:
 | `busy` / `building` | Breathing cyan | Something running |
 | `success` / `pass` | Breathing green | It worked |
 | `warning` | Breathing amber | Needs attention |
+| `attention` | Fast, bright amber pulse | Waiting on you (Claude Code) |
 | `error` / `fail` | Fast red pulse | It failed |
 | `focus` | Dim warm white | Night / low eye strain |
 | `rainbow` | Color cycle | Ambient |
@@ -131,6 +134,30 @@ from aero_rgb import set_status, set_keyboard_led
 set_status("busy")
 set_keyboard_led(pattern="breathe", color="#00FFCC", speed=8, brightness=8)
 ```
+
+### Claude Code
+
+The keyboard can tell you when Claude Code needs you. Merge
+[`examples/claude-code-hooks.json`](examples/claude-code-hooks.json) into `~/.claude/settings.json`
+(every project) or `.claude/settings.json` (one project).
+
+| What Claude Code is doing | Keyboard |
+| :--- | :--- |
+| Working on your prompt | `busy`: breathing cyan |
+| Waiting for your permission or input | `attention`: fast amber pulse |
+| Back to work after you approve something | `busy` again |
+| Finished its turn | `success`: green, for 10 seconds with the background program |
+| Session closed | Back to your base preset |
+
+- Each Claude Code session gets its own layer in the background program, so a session that needs
+  you shows over one that is just busy, and a USB pulse or low-battery warning still shows on top.
+- `aero-rgb hook` writes nothing to standard output, always exits 0, and the example runs it in the
+  background (`"async": true`), so it can never slow down or block Claude.
+- Notifications that don't need you, such as sign-in messages, are ignored.
+- Change the look with your own `[presets.attention]`, `[presets.busy]` or `[presets.success]` in
+  the settings file.
+- Without the background program it still works, but each change goes straight to the keyboard and
+  "done" stays green until the next prompt.
 
 ## Personalize
 
@@ -204,8 +231,11 @@ aero-keyboard-rgb/
 ├── docs/
 │   ├── PROTOCOL_SPEC.md        # The lighting chip's command format
 │   └── HARDWARE_TESTING.md     # Checklist for confirming everything on the laptop
+├── examples/
+│   └── claude-code-hooks.json  # Claude Code settings for keyboard signals
 ├── src/aero_rgb/
 │   ├── cli.py                  # The aero-rgb command
+│   ├── hooks.py                # What to show for each Claude Code event
 │   ├── protocol.py             # Builds the 9-byte commands and checksums
 │   ├── backends.py             # Direct USB / Gigabyte Control Center / dry run
 │   ├── engine.py               # Decides which request controls the light

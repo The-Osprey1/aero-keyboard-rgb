@@ -135,6 +135,21 @@ aero-rgb battery --show
 Shows the color for your current charge level for a few seconds. Set `mode = "always"`
 under `[battery]` to make it permanent.
 
+## Optional: compare with a USB capture
+
+If a probe step leaves you unsure, record what Gigabyte Control Center itself sends. Install
+[USBPcap](https://desowin.org/usbpcap/) and [Wireshark](https://www.wireshark.org/), start a capture
+on each USBPcap interface in turn until changing the color in Control Center produces traffic, then
+find the `SET_REPORT` requests and copy their 9 data bytes. Then:
+
+```powershell
+aero-rgb decode 00 14 00 01 00 FF FF 00 EC   # explains each field and checks the checksum
+aero-rgb --dry-run set -p breathe -c cyan    # what this tool would send for the same setting
+```
+
+If the two differ, open an issue with your laptop model, the captured bytes, and the Control Center
+setting you chose.
+
 ## Linux notes
 
 The direct route works on Linux too (Gigabyte's software isn't needed). Normal users can't
