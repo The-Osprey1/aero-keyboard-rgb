@@ -41,7 +41,11 @@ def set_keyboard_led(
             "-Speed", str(speed)
         ])
     
-    res = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        print(f"Lighting controller unavailable: {exc}", file=sys.stderr)
+        return False
     if res.returncode == 0:
         print(res.stdout.strip())
         return True
@@ -53,7 +57,7 @@ def set_status(status_preset: str) -> bool:
     """Set a quick status indicator preset."""
     return set_keyboard_led(status=status_preset)
 
-if __name__ == "__main__":
+def main(argv=None):
     import argparse
     parser = argparse.ArgumentParser(description="Control GIGABYTE AERO X16 keyboard LED array.")
     parser.add_argument(
@@ -69,12 +73,18 @@ if __name__ == "__main__":
         choices=["normal", "idle", "busy", "building", "success", "pass", "warning", "error", "fail", "focus", "rainbow", "off", "restore"],
         help="Quick status preset"
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
-    set_keyboard_led(
+    ok = set_keyboard_led(
         pattern=args.pattern,
         color=args.color,
         brightness=args.brightness,
         speed=args.speed,
         status=args.status
     )
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+

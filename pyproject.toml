@@ -20,4 +20,11 @@ requires-python = ">=3.8"
 dependencies = []
 
 [project.scripts]
-aero-rgb = "src.keyboard_led:main"
+aero-rgb = "src.cli:main"
+
+[tool.setuptools]
+packages = ["src"]
+
+[tool.setuptools.package-data]
+src = ["*.ps1"]
+
