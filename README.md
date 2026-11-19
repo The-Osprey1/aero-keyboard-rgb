@@ -1,117 +1,215 @@
 # AERO-Keyboard-RGB
 
-> Reverse-engineered keyboard RGB lighting and status indicator controller for **GIGABYTE AERO & AORUS** laptops.
+> Keyboard lighting control for **GIGABYTE AERO & AORUS** laptops, built for developers: make the keyboard show when your build is running, when tests fail, and when your coding agent is waiting on you.
 
+[![tests](https://github.com/The-Osprey1/aero-keyboard-rgb/actions/workflows/tests.yml/badge.svg)](https://github.com/The-Osprey1/aero-keyboard-rgb/actions/workflows/tests.yml)
 [![Platform](https://img.shields.io/badge/platform-Windows%2011-blue.svg)](https://microsoft.com/windows)
-[![Hardware](https://img.shields.io/badge/hardware-ITE%20IT8298%20MCU-orange.svg)]()
+[![Hardware](https://img.shields.io/badge/hardware-ITE%20IT8298-orange.svg)](docs/PROTOCOL_SPEC.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
----
-
-## Overview
-
-Modern GIGABYTE laptops (such as the **GIGABYTE AERO X16 1WH**) control their keyboard backlighting and chassis status indicators through an internal **ITE IT8298 MCU** exposed over USB HID (`VID_0414&PID_8104`). 
-
-Historically, controlling the lighting required running the heavy Gigabyte Control Center (GCC) / GiMATE software. This project documents the reverse-engineered hardware protocol and provides lightweight **PowerShell** and **Python** CLI/APIs to directly interface with the lighting controller, enabling:
-
-- **Custom Lighting Animations:** Solid Static, Breathing/Pulse, Spectrum Color Cycle, RGB Pulse, and Multi-phase Cycle Pulse.
-- **Developer Status Indicators:** Automated lighting signals for CI/CD, test runners (`pytest`, `npm test`), build passes/failures, and agent tasks.
-- **Hardware Telemetry Sync:** Dynamic ambient color shifts based on CPU/GPU temperatures, memory utilization, or battery state.
-- **Zero-GUI Overhead:** Operates via direct HID feature reports and local hardware library calls without GCC running.
+Not affiliated with or endorsed by GIGABYTE. This tool sends commands to your laptop's lighting controller; use it at your own risk.
 
 ---
 
-## Project Structure
+## What it does
 
 ```text
-aero-keyboard-rgb/
-├── README.md                      # Project documentation and quickstart
-├── LICENSE                        # MIT License
-├── pyproject.toml                 # Python package metadata
-├── docs/
-│   └── PROTOCOL_SPEC.md          # Exhaustive hardware reverse-engineering teardown
-└── src/
-    ├── keyboard_led.ps1           # Standalone PowerShell controller
-    ├── keyboard_led.py            # Python SDK and CLI tool
-    └── status_daemon.py           # Background system telemetry & status monitor
+aero-rgb run -- pytest      keyboard breathes cyan while tests run, then green or red
+aero-rgb hook               Claude Code hooks: cyan while working, amber when it needs you, green when done
+aero-rgb daemon             lighting follows CPU load, warns on low battery
+aero-rgb status focus       named presets for everyday use
 ```
+
+### How it reaches the keyboard today
+
+| Backend | Status | Needs |
+| :--- | :--- | :--- |
+| `control-center` | **Works** on Windows | Gigabyte Control Center installed. Slow: each change starts PowerShell and loads Control Center's libraries. |
+| `dry-run` | Works everywhere | Nothing. Prints the USB packets instead of sending them. |
+| Direct USB | **Planned** | Nothing extra; would also work on Linux. Waiting on a USB capture to confirm [the protocol spec](docs/PROTOCOL_SPEC.md#verification-status). |
+
+The backend is chosen automatically. Override it with `--backend`, `--dry-run`, or the `AERO_RGB_BACKEND` environment variable.
 
 ---
 
-## Quickstart
+## Install
 
-### 1. PowerShell CLI
-
-No external dependencies required on Windows 11 with the OEM lighting driver installed.
-
-```powershell
-# Set status indicator preset
-.\src\keyboard_led.ps1 -Status busy
-.\src\keyboard_led.ps1 -Status success
-.\src\keyboard_led.ps1 -Status restore
-
-# Set a custom pattern and color
-.\src\keyboard_led.ps1 -Pattern Breathe -Color Cyan -Speed 8 -Brightness 8
-.\src\keyboard_led.ps1 -Pattern Static -Color "#FF5500" -Brightness 5
-.\src\keyboard_led.ps1 -Pattern Rainbow -Speed 6
-```
-
-### 2. Python API
-
-```python
-from src.keyboard_led import set_status, set_keyboard_led
-
-# Trigger a developer status indicator
-set_status("busy")     # Breathing Cyan
-set_status("success")  # Breathing Green
-set_status("error")    # Rapid Red Pulse
-
-# Set custom colors and patterns
-set_keyboard_led(pattern="Breathe", color="#00FFCC", speed=8, brightness=8)
-```
-
-### 3. Background Telemetry Daemon
-
-Run the daemon to mirror live hardware metrics (CPU load/temperature and battery status) to the keyboard array:
+From a clone of this repository (Python 3.10 or newer):
 
 ```bash
-python src/status_daemon.py --mode thermals
+pip install .              # the aero-rgb command
+pip install ".[daemon]"    # also the CPU and battery daemon (adds psutil)
+```
+
+Try it without touching hardware:
+
+```bash
+aero-rgb status busy --dry-run
 ```
 
 ---
 
-## Built-in Status Presets
+## Usage
 
-| Status Preset | Animation / Color | Suggested Use Case |
-| :--- | :--- | :--- |
-| `busy` / `building` | **Breathing Cyan** (Speed 8, Bri 8) | Compiling, running tests, or background agent processing |
-| `success` / `pass` | **Breathing Green** (Speed 6, Bri 9) | Build succeeded, all tests passed |
-| `warning` | **Breathing Amber** (Speed 7, Bri 8) | High memory, elevated thermals (>70°C), low battery |
-| `error` / `fail` | **Pulsing Crimson** (Speed 9, Bri 10) | Build failed, test assertion failed, or unhandled exception |
-| `focus` | **Static Warm Amber** (Bri 3) | Low eyestrain coding / night reading mode |
-| `normal` / `idle` | **Static Soft White** (Bri 6) | Normal desktop operation |
-| `rainbow` | **Color Cycle** (Speed 6, Bri 8) | Ambient spectrum cycling |
-| `off` | **Off** (Brightness 0) | Stealth / display-off mode |
-| `restore` | **Factory Baseline** (Bri 7, White) | Reset to OEM startup profile |
+### Presets and custom lighting
+
+```bash
+aero-rgb status busy
+aero-rgb status success
+aero-rgb presets                                   # list them all
+
+aero-rgb set --pattern breathe --color cyan --speed 8 --brightness 8
+aero-rgb set --pattern static --color "#FF5500" --brightness 5
+aero-rgb set --pattern rainbow --speed 6
+```
+
+Patterns: `static`, `breathe` (or `pulse`), `cycle` (or `rainbow`), `rgb-pulse`, `cycle-pulse`.
+Colors: `#RRGGBB` or a name such as `cyan`, `amber`, `warmwhite`, `crimson`.
+
+### Wrap any command
+
+```bash
+aero-rgb run -- pytest -x
+aero-rgb run -- npm test
+aero-rgb run --success rainbow -- cargo build --release
+```
+
+The keyboard shows `busy` while the command runs, then `success` or `error`. `aero-rgb run` exits with the command's own exit code, so it is safe in scripts. If the lighting fails, the command still runs.
+
+### Claude Code hooks
+
+Your keyboard can tell you when Claude needs you. Merge [`examples/claude-code-hooks.json`](examples/claude-code-hooks.json) into `~/.claude/settings.json` (all projects) or `.claude/settings.json` (one project):
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "aero-rgb hook", "async": true }] }],
+    "Notification":     [{ "hooks": [{ "type": "command", "command": "aero-rgb hook", "async": true }] }],
+    "Stop":             [{ "hooks": [{ "type": "command", "command": "aero-rgb hook", "async": true }] }],
+    "SessionEnd":       [{ "hooks": [{ "type": "command", "command": "aero-rgb hook", "timeout": 10 }] }]
+  }
+}
+```
+
+| Claude Code event | Lighting |
+| :--- | :--- |
+| You send a prompt (`UserPromptSubmit`) | `busy`: breathing cyan |
+| Claude needs permission or input (`Notification`) | `attention`: fast amber pulse |
+| Claude finishes its turn (`Stop`) | `success`: breathing green |
+| Session ends (`SessionEnd`) | `normal` |
+
+`aero-rgb hook` reads the event from the JSON Claude Code sends, ignores notifications that don't need you (such as sign-in messages), writes nothing to standard output, and always exits 0 so it can never block Claude. `"async": true` keeps the slow Control Center backend from delaying your prompts. To choose your own colors, call `aero-rgb status <preset>` from each hook instead.
+
+### CPU and battery daemon
+
+```bash
+aero-rgb daemon --interval 3
+```
+
+| Condition | Lighting |
+| :--- | :--- |
+| Battery under 20% and not plugged in | Breathing orange |
+| CPU at 80% or more | Breathing red |
+| CPU at 40% or more | Breathing cyan |
+| Otherwise | Static teal |
+
+Each level has a 5-point buffer before it switches back down, so load near a threshold doesn't make the lighting flicker. Ctrl+C restores the factory lighting.
+
+### Python
+
+```python
+from aero_rgb import set_status, set_keyboard_led
+
+set_status("busy")
+set_keyboard_led(pattern="breathe", color="#00FFCC", speed=8, brightness=8)
+```
+
+Both raise `aero_rgb.BackendError` if the lighting can't be applied and `ValueError` on bad input.
+
+### PowerShell, without Python
+
+`src/aero_rgb/keyboard_led.ps1` also works on its own (needs Gigabyte Control Center):
+
+```powershell
+.\src\aero_rgb\keyboard_led.ps1 -Status busy
+.\src\aero_rgb\keyboard_led.ps1 -Pattern Breathe -Color Cyan -Speed 8 -Brightness 8
+.\src\aero_rgb\keyboard_led.ps1 -Pattern Static -Color "#FF5500" -Brightness 5
+```
 
 ---
 
-## Hardware Specifications
+## Presets
+
+| Preset | Lighting | Use it for |
+| :--- | :--- | :--- |
+| `normal` (also `idle`) | Static white, brightness 6 | Everyday lighting |
+| `busy` (also `building`) | Breathing cyan, speed 8, brightness 8 | Build, tests or an agent is running |
+| `success` (also `pass`) | Breathing green, speed 6, brightness 9 | Finished without errors |
+| `warning` | Breathing amber, speed 7, brightness 8 | Something needs a look soon |
+| `attention` | Breathing amber, speed 9, brightness 10 | Waiting on you |
+| `error` (also `fail`) | Breathing red, speed 9, brightness 10 | Build or tests failed |
+| `focus` | Static warm white, brightness 3 | Dim light for night work |
+| `rainbow` | Color cycle, speed 6, brightness 8 | Ambient color cycle |
+| `off` | Brightness 0 | Lights off |
+| `restore` | Static white, brightness 7 | Gigabyte's factory baseline |
+
+---
+
+## Help confirm the protocol
+
+[`docs/PROTOCOL_SPEC.md`](docs/PROTOCOL_SPEC.md) describes the USB packets the lighting controller expects, but it hasn't been checked against real traffic yet. If you have an AERO or AORUS laptop:
+
+1. Install [USBPcap](https://desowin.org/usbpcap/) and [Wireshark](https://www.wireshark.org/).
+2. Record while Gigabyte Control Center changes the color and pattern.
+3. Compare what you captured with what this tool would send:
+
+```bash
+aero-rgb set --pattern breathe --color cyan --dry-run
+aero-rgb decode 00 14 00 01 00 FF FF 00 EC      # explains each byte and checks the checksum
+```
+
+Open an issue with your laptop model, the captured bytes, and what Control Center was set to.
+
+---
+
+## Hardware
 
 | Property | Value |
 | :--- | :--- |
-| **Target Host** | GIGABYTE AERO X16 1WH / AORUS Laptop Series |
-| **USB Vendor ID (VID)** | `0x0414` (Giga-Byte Technology Co., Ltd.) |
-| **USB Product ID (PID)** | `0x8104` |
-| **Embedded Controller (EC)** | ITE IT8298 / IT8233 MCU |
-| **Keyboard Array Topology** | Single-Zone Full RGB (`iRgbZone: 1`) |
-| **Auxiliary Endpoint** | Windows Dynamic Lighting `LampArray` Notification device on `MI_04` |
-| **HID Report Type** | 9-byte HID Feature Report |
-
-For full protocol analysis, packet structures, and checksum formulas, see [docs/PROTOCOL_SPEC.md](docs/PROTOCOL_SPEC.md).
+| **Target laptop** | GIGABYTE AERO X16 1WH / AORUS laptop series |
+| **USB vendor ID** | `0x0414` (Giga-Byte Technology Co., Ltd.) |
+| **USB product ID** | `0x8104` |
+| **Lighting controller** | ITE IT8298 / IT8233 |
+| **Keyboard lighting** | Single zone, full RGB |
+| **Extra interface** | Windows Dynamic Lighting `LampArray` notification lamp on `MI_04` |
+| **Packet format** | 9-byte USB HID feature report |
 
 ---
 
+## Project structure
+
+```text
+aero-keyboard-rgb/
+├── docs/PROTOCOL_SPEC.md           # Reverse-engineered packet format and open questions
+├── examples/claude-code-hooks.json # Ready-to-merge Claude Code hooks
+├── src/aero_rgb/
+│   ├── protocol.py                 # Colors, patterns, presets, packet building (no hardware access)
+│   ├── backends.py                 # Control Center and dry-run backends
+│   ├── cli.py                      # The aero-rgb command
+│   ├── daemon.py                   # CPU and battery daemon
+│   └── keyboard_led.ps1            # PowerShell script that drives Gigabyte Control Center
+└── tests/                          # Run anywhere: no hardware needed
+```
+
+## Development
+
+```bash
+pip install -e ".[test]"
+pytest
+```
+
+The tests also check that the PowerShell script's presets and colors match the Python ones.
+
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+[MIT](LICENSE)

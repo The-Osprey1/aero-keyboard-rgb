@@ -29,7 +29,7 @@ param(
     [int]$Speed = 8,
 
     [Parameter()]
-    [ValidateSet("normal", "idle", "busy", "building", "success", "pass", "warning", "error", "fail", "focus", "rainbow", "off", "restore")]
+    [ValidateSet("normal", "idle", "busy", "building", "success", "pass", "warning", "attention", "error", "fail", "focus", "rainbow", "off", "restore")]
     [string]$Status
 )
 
@@ -67,11 +67,14 @@ function Resolve-ColorValue([string]$col) {
         $c = $c.Substring(2)
     }
     try {
-        return [System.Convert]::ToInt32($c, 16)
+        $value = [System.Convert]::ToInt32($c, 16)
+        if ($value -ge 0 -and $value -le 0xFFFFFF) {
+            return $value
+        }
     } catch {
-        Write-Warning "Unknown color '$col', defaulting to White (0xFFFFFF)"
-        return 0xFFFFFF
     }
+    Write-Warning "Unknown color '$col', defaulting to White (0xFFFFFF)"
+    return 0xFFFFFF
 }
 
 # Process Status Presets
@@ -99,6 +102,12 @@ if ($PSBoundParameters.ContainsKey("Status")) {
             $Color = "Amber"
             $Speed = 7
             $Brightness = 8
+        }
+        "attention" {
+            $Pattern = "Breathe"
+            $Color = "Amber"
+            $Speed = 9
+            $Brightness = 10
         }
         { $_ -in "error", "fail" } {
             $Pattern = "Breathe"
@@ -193,5 +202,6 @@ if ($result -eq 0) {
     Write-Host "  Brightness: $Brightness/10"
     Write-Host "  Speed:      $Speed/10"
 } else {
-    Write-Warning "Hardware returned status code: $result"
+    [Console]::Error.WriteLine("Keyboard controller returned status code $result; lighting was not updated.")
+    exit 2
 }

@@ -3,6 +3,14 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Python packaging, virtual environments and test caches
+build/
+dist/
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
 # C# / Visual Studio / Build Artifacts
 bin/
 obj/

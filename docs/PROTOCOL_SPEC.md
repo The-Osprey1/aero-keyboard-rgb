@@ -1,6 +1,22 @@
 # GIGABYTE AERO / AORUS Keyboard RGB Hardware Protocol Specification
 
-This document details the reverse-engineered communications protocol between the operating system and the internal keyboard lighting microcontroller on **GIGABYTE AERO & AORUS** series laptops (specifically validated on the **GIGABYTE AERO X16 1WH**).
+This document details the reverse-engineered communications protocol between the operating system and the internal keyboard lighting microcontroller on **GIGABYTE AERO & AORUS** series laptops (target hardware: the **GIGABYTE AERO X16 1WH**).
+
+---
+
+## Verification status
+
+This spec has **not yet been confirmed against a USB capture** from real hardware, and no code in this repository sends these packets to the keyboard yet. `aero-rgb --dry-run` prints the packets this spec describes, and `aero-rgb decode` explains captured bytes field by field, so the two can be compared.
+
+Open questions to settle with a capture (USBPcap + Wireshark while Gigabyte Control Center changes the lighting):
+
+1. **Which interface** (`MI_01` or `MI_03`?) and which HID usage page receives the 9-byte feature reports.
+2. **Hardware pattern IDs** `0x01`–`0x05` (section 5): do these appear on the wire, or the Control Center IDs `0`, `1`, `78`, `84`, `92`?
+3. **Static brightness** (section 5 note): sent directly, or as `0x20 | brightness`?
+4. **Value ranges:** are brightness and speed really sent as 0–10 and 1–10, and is a higher speed number faster or slower?
+5. **Timing:** is the 15–25 ms gap between the color and mode packets required?
+
+Fixed so far: the checksum example in section 4 previously said `0xEB`; the formula gives `0xEC`.
 
 ---
 
@@ -101,7 +117,8 @@ This packet sets the active 24-bit RGB palette in the MCU registers:
   * Byte 4 (Red): `0x00`
   * Byte 5 (Green): `0xFF`
   * Byte 6 (Blue): `0xFF`
-  * Checksum: `(255 - (0x14 + 0x00 + 0x01 + 0x00 + 0xFF + 0xFF + 0x00)) & 0xFF = 0xEB`
+  * Checksum: `(255 - (0x14 + 0x00 + 0x01 + 0x00 + 0xFF + 0xFF + 0x00)) & 0xFF = 0xEC`
+  * Full packet: `00 14 00 01 00 FF FF 00 EC`
 
 ### Step 2: SpinWait Delay
 Wait **15–25ms** for MCU register latching:
